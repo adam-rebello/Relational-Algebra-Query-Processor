@@ -23,21 +23,17 @@ from .ast_nodes import (
 
 class Evaluator:
     def __init__(self, relations):
-        """
-        relations is a dictionary such as:
-
-        {
-            "Employees": employees_relation,
-            "Dept": dept_relation
-        }
-        """
         self.relations = relations
 
+        # Performance counters required by the assignment
         self.join_comparisons = 0
         self.select_comparisons = 0
 
-    def evaluate(self, node):
+    # ---------------------------------------------------------
+    # Main evaluator
+    # ---------------------------------------------------------
 
+    def evaluate(self, node):
         if isinstance(node, RelationNode):
             return self.evaluate_relation(node)
 
@@ -114,12 +110,13 @@ class Evaluator:
         seen = set()
 
         for attr_node in node.attributes:
-
             key = (
                 attr_node.relation,
                 attr_node.name
             )
 
+            # Our documented rule:
+            # duplicate projection attributes are an error
             if key in seen:
                 raise SchemaError(
                     f"Duplicate projection attribute "
@@ -135,13 +132,13 @@ class Evaluator:
 
             indexes.append(index)
 
-            old_attr = relation.attributes[index]
+            original_attribute = relation.attributes[index]
 
             attributes.append(
                 Attribute(
-                    old_attr.name,
-                    old_attr.relation,
-                    old_attr.value_type
+                    original_attribute.name,
+                    original_attribute.relation,
+                    original_attribute.value_type
                 )
             )
 
@@ -152,10 +149,11 @@ class Evaluator:
 
         for row in relation.tuples:
             values = [
-                row.values[i]
-                for i in indexes
+                row.values[index]
+                for index in indexes
             ]
 
+            # add_tuple removes duplicate projected tuples
             result.add_tuple(values)
 
         return result
@@ -189,14 +187,17 @@ class Evaluator:
         return result
 
     # ---------------------------------------------------------
-    # Set operators
+    # Union
     # ---------------------------------------------------------
 
     def evaluate_union(self, node):
         left = self.evaluate(node.left)
         right = self.evaluate(node.right)
 
-        self.check_union_compatible(left, right)
+        self.check_union_compatible(
+            left,
+            right
+        )
 
         result = left.copy_schema()
 
@@ -208,27 +209,43 @@ class Evaluator:
 
         return result
 
+    # ---------------------------------------------------------
+    # Intersect
+    # ---------------------------------------------------------
+
     def evaluate_intersect(self, node):
         left = self.evaluate(node.left)
         right = self.evaluate(node.right)
 
-        self.check_union_compatible(left, right)
+        self.check_union_compatible(
+            left,
+            right
+        )
 
         result = left.copy_schema()
 
         for left_row in left.tuples:
             for right_row in right.tuples:
                 if left_row == right_row:
-                    result.add_tuple(left_row.values)
+                    result.add_tuple(
+                        left_row.values
+                    )
                     break
 
         return result
+
+    # ---------------------------------------------------------
+    # Minus
+    # ---------------------------------------------------------
 
     def evaluate_minus(self, node):
         left = self.evaluate(node.left)
         right = self.evaluate(node.right)
 
-        self.check_union_compatible(left, right)
+        self.check_union_compatible(
+            left,
+            right
+        )
 
         result = left.copy_schema()
 
@@ -241,12 +258,14 @@ class Evaluator:
                     break
 
             if not found:
-                result.add_tuple(left_row.values)
+                result.add_tuple(
+                    left_row.values
+                )
 
         return result
 
     # ---------------------------------------------------------
-    # Cartesian product
+    # Cartesian Product
     # ---------------------------------------------------------
 
     def evaluate_times(self, node):
@@ -273,7 +292,9 @@ class Evaluator:
                 )
             )
 
-        self.check_duplicate_qualified_names(attributes)
+        self.check_duplicate_qualified_names(
+            attributes
+        )
 
         result = Relation(
             f"{left.name}_times_{right.name}",
@@ -282,8 +303,13 @@ class Evaluator:
 
         for left_row in left.tuples:
             for right_row in right.tuples:
+                combined_values = (
+                    left_row.values
+                    + right_row.values
+                )
+
                 result.add_tuple(
-                    left_row.values + right_row.values
+                    combined_values
                 )
 
         return result
@@ -296,26 +322,6 @@ class Evaluator:
         left = self.evaluate(node.left)
         right = self.evaluate(node.right)
 
-        product = self.evaluate_times_from_relations(
-            left,
-            right
-        )
-
-        result = product.copy_schema()
-
-        for row in product.tuples:
-            self.join_comparisons += 1
-
-            if self.evaluate_condition(
-                node.condition,
-                product,
-                row
-            ):
-                result.add_tuple(row.values)
-
-        return result
-
-    def evaluate_times_from_relations(self, left, right):
         attributes = []
 
         for attribute in left.attributes:
@@ -336,27 +342,236 @@ class Evaluator:
                 )
             )
 
-        self.check_duplicate_qualified_names(attributes)
-
-        result = Relation(
-            f"{left.name}_times_{right.name}",
+        self.check_duplicate_qualified_names(
             attributes
         )
 
+        result = Relation(
+            f"{left.name}_join_{right.name}",
+            attributes
+        )
+
+        # Nested-loop theta join.
+        # Every left/right pair is checked.
         for left_row in left.tuples:
             for right_row in right.tuples:
-                result.add_tuple(
-                    left_row.values + right_row.values
-                )
+                self.join_comparisons += 1
+
+                if self.evaluate_join_condition(
+                    node.condition,
+                    left,
+                    left_row,
+                    right,
+                    right_row
+                ):
+                    result.add_tuple(
+                        left_row.values
+                        + right_row.values
+                    )
 
         return result
 
     # ---------------------------------------------------------
-    # Conditions
+    # Join Conditions
     # ---------------------------------------------------------
 
-    def evaluate_condition(self, node, relation, row):
+    def evaluate_join_condition(
+        self,
+        node,
+        left_relation,
+        left_row,
+        right_relation,
+        right_row
+    ):
+        if isinstance(node, AndNode):
+            return (
+                self.evaluate_join_condition(
+                    node.left,
+                    left_relation,
+                    left_row,
+                    right_relation,
+                    right_row
+                )
+                and
+                self.evaluate_join_condition(
+                    node.right,
+                    left_relation,
+                    left_row,
+                    right_relation,
+                    right_row
+                )
+            )
 
+        if isinstance(node, OrNode):
+            return (
+                self.evaluate_join_condition(
+                    node.left,
+                    left_relation,
+                    left_row,
+                    right_relation,
+                    right_row
+                )
+                or
+                self.evaluate_join_condition(
+                    node.right,
+                    left_relation,
+                    left_row,
+                    right_relation,
+                    right_row
+                )
+            )
+
+        if isinstance(node, NotNode):
+            return not self.evaluate_join_condition(
+                node.child,
+                left_relation,
+                left_row,
+                right_relation,
+                right_row
+            )
+
+        if isinstance(node, ComparisonNode):
+            left_value = self.resolve_join_operand(
+                node.left,
+                left_relation,
+                left_row,
+                right_relation,
+                right_row
+            )
+
+            right_value = self.resolve_join_operand(
+                node.right,
+                left_relation,
+                left_row,
+                right_relation,
+                right_row
+            )
+
+            return self.compare_values(
+                left_value,
+                node.operator,
+                right_value
+            )
+
+        raise TypeErrorRA(
+            "Invalid join condition"
+        )
+
+    def resolve_join_operand(
+        self,
+        node,
+        left_relation,
+        left_row,
+        right_relation,
+        right_row
+    ):
+        if isinstance(node, NumberNode):
+            return node.value
+
+        if isinstance(node, StringNode):
+            return node.value
+
+        if not isinstance(node, AttributeNode):
+            raise TypeErrorRA(
+                "Invalid join operand"
+            )
+
+        matches = []
+
+        # Qualified attribute:
+        # Emp.DID, Dept.DID, E2.EID, etc.
+        if node.relation is not None:
+
+            for index, attribute in enumerate(
+                left_relation.attributes
+            ):
+                relation_name = (
+                    attribute.relation
+                    or left_relation.name
+                )
+
+                if (
+                    relation_name == node.relation
+                    and attribute.name == node.name
+                ):
+                    matches.append(
+                        ("left", index)
+                    )
+
+            for index, attribute in enumerate(
+                right_relation.attributes
+            ):
+                relation_name = (
+                    attribute.relation
+                    or right_relation.name
+                )
+
+                if (
+                    relation_name == node.relation
+                    and attribute.name == node.name
+                ):
+                    matches.append(
+                        ("right", index)
+                    )
+
+            if len(matches) == 0:
+                raise SchemaError(
+                    f"Unknown attribute "
+                    f"{node.relation}.{node.name}"
+                )
+
+            if len(matches) > 1:
+                raise SchemaError(
+                    f"Ambiguous attribute "
+                    f"{node.relation}.{node.name}"
+                )
+
+        # Unqualified attribute:
+        # DID, Age, Name, etc.
+        else:
+            for index, attribute in enumerate(
+                left_relation.attributes
+            ):
+                if attribute.name == node.name:
+                    matches.append(
+                        ("left", index)
+                    )
+
+            for index, attribute in enumerate(
+                right_relation.attributes
+            ):
+                if attribute.name == node.name:
+                    matches.append(
+                        ("right", index)
+                    )
+
+            if len(matches) == 0:
+                raise SchemaError(
+                    f"Unknown attribute {node.name}"
+                )
+
+            if len(matches) > 1:
+                raise SchemaError(
+                    f"Ambiguous attribute {node.name}"
+                )
+
+        side, index = matches[0]
+
+        if side == "left":
+            return left_row.values[index]
+
+        return right_row.values[index]
+
+    # ---------------------------------------------------------
+    # Normal Selection Conditions
+    # ---------------------------------------------------------
+
+    def evaluate_condition(
+        self,
+        node,
+        relation,
+        row
+    ):
         if isinstance(node, AndNode):
             return (
                 self.evaluate_condition(
@@ -417,8 +632,16 @@ class Evaluator:
             "Invalid condition"
         )
 
-    def resolve_operand(self, node, relation, row):
+    # ---------------------------------------------------------
+    # Normal Operand Resolution
+    # ---------------------------------------------------------
 
+    def resolve_operand(
+        self,
+        node,
+        relation,
+        row
+    ):
         if isinstance(node, NumberNode):
             return node.value
 
@@ -437,10 +660,23 @@ class Evaluator:
             "Invalid operand"
         )
 
-    def compare_values(self, left, operator, right):
+    # ---------------------------------------------------------
+    # Comparison
+    # ---------------------------------------------------------
 
-        left_type = self.get_value_type(left)
-        right_type = self.get_value_type(right)
+    def compare_values(
+        self,
+        left,
+        operator,
+        right
+    ):
+        left_type = self.get_value_type(
+            left
+        )
+
+        right_type = self.get_value_type(
+            right
+        )
 
         if left_type != right_type:
             raise TypeErrorRA(
@@ -467,39 +703,65 @@ class Evaluator:
             return left >= right
 
         raise TypeErrorRA(
-            f"Unknown comparison operator {operator}"
+            f"Unknown comparison operator "
+            f"{operator}"
         )
 
     # ---------------------------------------------------------
-    # Schema helpers
+    # Union Compatibility
     # ---------------------------------------------------------
 
-    def check_union_compatible(self, left, right):
-
-        if len(left.attributes) != len(right.attributes):
+    def check_union_compatible(
+        self,
+        left,
+        right
+    ):
+        if len(left.attributes) != len(
+            right.attributes
+        ):
             raise SchemaError(
                 "Relations are not union compatible"
             )
 
-        for i in range(len(left.attributes)):
-            left_attr = left.attributes[i]
-            right_attr = right.attributes[i]
+        for index in range(
+            len(left.attributes)
+        ):
+            left_attribute = (
+                left.attributes[index]
+            )
 
-            if left_attr.name != right_attr.name:
-                raise SchemaError(
-                    "Relations are not union compatible"
-                )
+            right_attribute = (
+                right.attributes[index]
+            )
 
             if (
-                left_attr.value_type is not None
-                and right_attr.value_type is not None
-                and left_attr.value_type != right_attr.value_type
+                left_attribute.name
+                != right_attribute.name
             ):
                 raise SchemaError(
                     "Relations are not union compatible"
                 )
 
-    def check_duplicate_qualified_names(self, attributes):
+            if (
+                left_attribute.value_type is not None
+                and
+                right_attribute.value_type is not None
+                and
+                left_attribute.value_type
+                != right_attribute.value_type
+            ):
+                raise SchemaError(
+                    "Relations are not union compatible"
+                )
+
+    # ---------------------------------------------------------
+    # Qualified Name Collision Check
+    # ---------------------------------------------------------
+
+    def check_duplicate_qualified_names(
+        self,
+        attributes
+    ):
         names = set()
 
         for attribute in attributes:
@@ -507,14 +769,21 @@ class Evaluator:
 
             if name in names:
                 raise SchemaError(
-                    f"Duplicate qualified attribute {name}"
+                    f"Duplicate qualified attribute "
+                    f"{name}"
                 )
 
             names.add(name)
 
-    def get_value_type(self, value):
+    # ---------------------------------------------------------
+    # Value Types
+    # ---------------------------------------------------------
 
-        if isinstance(value, (int, float)) and not isinstance(value, bool):
+    def get_value_type(self, value):
+        if (
+            isinstance(value, (int, float))
+            and not isinstance(value, bool)
+        ):
             return "number"
 
         if isinstance(value, str):
