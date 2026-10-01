@@ -1,6 +1,6 @@
 # DESIGN_LOG.md
 
-## Session 1 - Grammar and Initial Design
+## Session 1 - Grammar and Initial Design Septemeber 22nd, 2026
 
 I started by breaking the project into the tokenizer, parser, parse tree, relation model, evaluator, tests, and performance tools. I decided to use a hand-written tokenizer and recursive-descent parser because the assignment specifically does not allow parser generators or regular expressions.
 
@@ -8,7 +8,7 @@ I also worked out the operator precedence before implementing the parser. Union 
 
 One issue I found while discussing the tokenizer with AI was that an early approach treated words such as union as permanently reserved keywords. That would have caused valid cases such as select[union=3](R) to fail when an attribute happens to have the same name as a keyword. I changed the design so the tokenizer produces WORD tokens and the parser decides from context whether a word is acting as an operator or an identifier.
 
-## Session 2 - Tokenizer, Parser, and Parse Tree
+## Session 2 - Tokenizer, Parser, and Parse Tree Septemebr 23rd, 2026
 
 I implemented the tokenizer manually with character-by-character scanning. It supports identifiers, numbers, strings, punctuation, comparison operators, comments, and source positions. Multi-character operators such as >=, <=, and != use maximal munch.
 
@@ -20,7 +20,7 @@ project[Name](select[Age>30](Employees))
 
 The grammar tests were also useful for confirming that A minus B minus C groups from the left and that condition precedence follows not, then and, then or.
 
-## Session 3 - Relation Model and Operators
+## Session 3 - Relation Model and Operators September 24th, 2026 
 
 I implemented the Relation, Attribute, and tuple classes and then added the relational operators in the evaluator. Relations use set semantics, so duplicate tuples are not inserted.
 
@@ -28,7 +28,7 @@ One problem caused by an earlier AI-generated version of copy_schema() was that 
 
 I also decided that projecting the same attribute more than once is treated as a schema error. This behaviour is documented and tested.
 
-## Session 4 - Join and Self-Join Debugging
+## Session 4 - Join and Self-Join Debugging September 25th, 2026
 
 The join operator was implemented as a nested-loop theta join. For every pair of tuples, the join condition is evaluated and the join comparison counter is increased exactly once.
 
@@ -36,7 +36,7 @@ Another AI-generated join revision initially handled qualified attributes incorr
 
 I found this when the required qualified join and self-join semantic tests failed. I rewrote join operand resolution so it searches the left and right schemas separately and checks the stored relation qualifier. After that correction, the full test suite passed with 32 tests.
 
-## Session 5 - Error Handling and Command-Line Interface
+## Session 5 - Error Handling and Command-Line Interface Septemeber 26th, 2026
 
 I added separate error categories for lexical errors, syntax errors, unknown names, schema problems, and type errors.
 
@@ -48,7 +48,7 @@ python ra.py --tree "project[Name](select[Age>30](Employees))"
 
 I also tested evaluation using a relation data file and checked normal results, projection, selection, and empty results.
 
-## Session 6 - Performance Testing
+## Session 6 - Performance Testing September 29th, 2026
 
 I created separate benchmark tools for join, select/project, and match-rate experiments.
 
@@ -62,7 +62,7 @@ The select and project measurements were approximately linear, while the join me
 
 I also varied the join match rate at 4,000 tuples per relation. Every run still performed 16,000,000 comparisons, while runtime increased as the result size increased. This confirmed that the nested-loop algorithm always checks every pair regardless of how many pairs actually match.
 
-## Session 7 - Final Review
+## Session 7 - Final Review September 30th, 2026 
 
 I finished the required tests, performance experiments, grammar document, report, README, and design log.
 
