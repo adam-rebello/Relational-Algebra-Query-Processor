@@ -1,5 +1,6 @@
 # DESIGN_LOG.md
 
+More recent milestones working periods are below intial project submission.
 ## Session 1 - Grammar and Initial Design Septemeber 22nd, 2026
 
 I started by breaking the project into the tokenizer, parser, parse tree, relation model, evaluator, tests, and performance tools. I decided to use a hand-written tokenizer and recursive-descent parser because the assignment specifically does not allow parser generators or regular expressions.
@@ -75,3 +76,109 @@ The main AI mistakes or incomplete suggestions that I had to identify and correc
 5. Using a selection benchmark that included large result-construction costs instead of isolating the tuple scan.
 
 These issues were found through required test cases, failed semantic behaviour, and performance measurements rather than accepting generated code without checking it.
+
+# COMP 3005 – Bonus Project 2
+## Module 1: Storage Engine and Buffer Pool — Design Log
+
+### Entry 1 – Initial Planning and Reviewing Project 1
+**Date:** [Nov 2nd, 2026]
+
+I started by going through the requirements for Bonus Project 2 and comparing them with my previous relational algebra processor. Since Project 1 mainly worked with relations stored in memory, I needed to figure out how to build the storage layer without affecting the original code.
+
+I decided to keep the relational algebra components and build the new storage engine separately. This would make it easier to test the new features while keeping the old functionality working.
+
+I also reviewed the module requirements, especially the fixed page size, record formats, and memory restrictions, since these were important for the rest of the implementation.
+
+### Entry 2 – Record Encoding and Slotted Pages
+**Date:** [Nov 3rd, 2026]
+
+I worked on storing records using the formats provided in the assignment. Each page is 4096 bytes, with integers stored using 4 bytes and strings stored with a length prefix.
+
+For the page layout, I used a slot directory that grows forward from the page header, while the actual record data is stored backward from the end of the page.
+
+One thing I had to pay attention to was how deletion works. Instead of removing a slot or reusing its number, I marked it as deleted. This keeps existing record IDs valid and follows the required page structure.
+
+I checked the page layout against the worked example to make sure the offsets and free-space values matched.
+
+### Entry 3 – Heap File and Catalog Implementation
+**Date:** [Nov 4th, 2026]
+
+After working on the page structure, I moved on to the heap file and catalog.
+
+The heap file uses directory pages to keep track of the available space in each data page. This allows the program to find somewhere to insert a record without searching through every data page.
+
+I also worked on the catalog, which stores information about the tables, including their names, schemas, and number of records.
+
+I kept the storage components separate so the rest of the database system could eventually use them.
+
+### Entry 4 – Buffer Pool and Replacement Policies
+**Date:** [Nov 5th, 2026]
+
+The next part was implementing the buffer pool with a fixed number of frames.
+
+I added pin counts to track which pages are currently being used and dirty flags to identify pages that need to be written back to disk.
+
+I implemented both LRU and CLOCK replacement policies. LRU removes the least recently used unpinned page, while CLOCK uses reference bits and a rotating pointer to select a page for replacement.
+
+I tested both policies using the assignment's example trace:
+
+`1 2 3 1 4 2`
+
+With three frames, the results matched the expected values:
+
+- LRU: 1 hit, 5 misses, 2 evictions.
+- CLOCK: 2 hits, 4 misses, 1 eviction.
+
+This helped confirm that the replacement logic was following the specification.
+
+### Entry 5 – Command-Line Interface and Debugging
+**Date:** [Nov 6th, 2026]
+
+Once the main storage components were implemented, I worked on making them accessible through the command-line interface.
+
+The required commands included creating tables, loading CSV files, scanning records, displaying page layouts, and running buffer replacement traces.
+
+While reviewing the implementation, I noticed that some earlier AI-assisted suggestions focused on the storage classes without covering every required command-line operation.
+
+I corrected this by adding the missing command functionality and testing the commands individually.
+
+Another issue I reviewed was memory usage. Using separate buffer pools for catalog and table operations could potentially exceed the frame limit. I adjusted the command flow so catalog resources were released before opening the heap-file buffer pool.
+
+These changes helped keep the implementation consistent with the module requirements.
+
+### Entry 6 – Relational Algebra Compatibility
+**Date:** [Nov 6th, 2026]
+
+I also reviewed how the original relational algebra processor would connect with the new database system.
+
+One difference was duplicate handling. Bonus Project 1 used set semantics, where duplicate tuples were removed, but SQL generally uses bag semantics.
+
+I added support for preserving duplicate tuples while keeping the original set-based behaviour available for compatibility.
+
+This was important for the later modules, especially the execution engine and SQL front end.
+
+### Entry 7 – Testing and Verification
+**Date:** [Nov 7th, 2026]
+
+After completing the main implementation, I ran the original Bonus Project 1 tests along with the new storage engine tests.
+
+The combined suite passed 51 tests, including the original 32 tests.
+
+I also checked the important requirements from the Module 1 specification, including the slotted-page example, buffer replacement counters, record operations, and command-line functionality.
+
+The goal was to make sure the implementation followed the exact required behaviour rather than simply returning the expected data.
+
+### Entry 8 – Measurements, Documentation, and Final Review
+**Date:** [Nov 7th, 2026]
+
+For the final part of Module 1, I organized the design documentation and measurement results.
+
+The design document explains the page layout, record encoding, heap file structure, catalog, and buffer pool implementation.
+
+The measurement report includes page-capacity calculations, buffer replacement results, and scan measurements.
+
+The official Brightspace trace files were not used for the replacement-policy measurements, so I identified those results as synthetic workloads rather than presenting them as the official traces.
+
+Looking back, the main challenge was making sure the low-level details were correct. Small differences in page offsets, replacement order, or counter calculations could affect the grading results.
+
+This module also provided a foundation for the next stage of the project, where the execution engine will need to read tuples through the buffer pool instead of relying on relations stored entirely in memory.
