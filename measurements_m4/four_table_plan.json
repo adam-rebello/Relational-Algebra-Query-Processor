@@ -1,0 +1,75 @@
+{
+  "child": {
+    "op": "nested_loop_join",
+    "condition": "a.k = b.k",
+    "left": {
+      "op": "nested_loop_join",
+      "condition": "b.k = c.k",
+      "left": {
+        "op": "nested_loop_join",
+        "condition": "c.k = d.k",
+        "left": {
+          "child": {
+            "op": "rename",
+            "to": "d",
+            "child": {
+              "op": "seqscan",
+              "table": "D"
+            }
+          },
+          "op": "project",
+          "columns": [
+            "d.k"
+          ]
+        },
+        "right": {
+          "child": {
+            "op": "rename",
+            "to": "c",
+            "child": {
+              "op": "seqscan",
+              "table": "C"
+            }
+          },
+          "op": "project",
+          "columns": [
+            "c.k"
+          ]
+        }
+      },
+      "right": {
+        "child": {
+          "op": "rename",
+          "to": "b",
+          "child": {
+            "op": "seqscan",
+            "table": "B"
+          }
+        },
+        "op": "project",
+        "columns": [
+          "b.k"
+        ]
+      }
+    },
+    "right": {
+      "child": {
+        "op": "rename",
+        "to": "a",
+        "child": {
+          "op": "seqscan",
+          "table": "A"
+        }
+      },
+      "op": "project",
+      "columns": [
+        "a.id",
+        "a.k"
+      ]
+    }
+  },
+  "op": "project",
+  "columns": [
+    "a.id"
+  ]
+}

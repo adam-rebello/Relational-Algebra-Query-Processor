@@ -1,0 +1,9 @@
+query,frames,estimated_rows,actual_rows,actual_io,root_op
+1,4,525,420,8,project
+1,16,525,420,8,project
+2,4,514,421,8,project
+2,16,514,421,8,project
+3,4,6125,6158,16,project
+3,16,6125,6158,16,project
+4,4,25550,25784,37,project
+4,16,25550,25784,34,project

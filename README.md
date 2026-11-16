@@ -351,3 +351,20 @@ python -m pytest tests/test_module3.py -q
 ```
 
 `compile` and `check` need existing tables in a Module 1 catalog at `./my_db`. The commands print `error: category: ... at line ..., column ...` and exit nonzero on failure.
+
+## Project 2 — Module 4 Query Optimizer
+
+Module 4 lives in `query_optimizer/`; invoke it with `python opt.py` on Windows or `./opt` on Linux/macOS.
+
+```sh
+python opt.py analyze --db ./my_db --table R --buckets 20
+python opt.py plan --db ./my_db --logical q.json --frames 32 --json
+python opt.py explain --db ./my_db --logical q.json --frames 32
+python opt.py dp-table --db ./my_db --logical q.json --frames 32
+python -m pytest -q tests/test_module4.py
+python tools/m4_quick_measure.py
+```
+
+The logical plan should be emitted by Module 3 (`python sql.py compile ... --json`) and fed without editing to Module 4. The physical plan from `opt plan` is accepted by Module 2 (`python exec.py run --db ./my_db --plan physical.json --frames 32 --json`). On Windows, `opt.bat` is also available.
+
+The Module 4 package includes `DESIGN_M4.md`, `REPORT_M4.md`, entries in `DESIGN_LOG.md`, reproducible synthetic measurement files in `measurements_m4/`, and `tests/test_module4.py`. The instructor's 20-query workload was not provided; the reports do **not** claim that required workload is complete or that hidden tests have passed.

@@ -1,0 +1,112 @@
+[
+  {
+    "subset": [
+      "a"
+    ],
+    "order": "a",
+    "algorithm": "scan",
+    "cost": 1,
+    "rows": 140,
+    "pages": 1
+  },
+  {
+    "subset": [
+      "b"
+    ],
+    "order": "b",
+    "algorithm": "scan",
+    "cost": 1,
+    "rows": 90,
+    "pages": 1
+  },
+  {
+    "subset": [
+      "c"
+    ],
+    "order": "c",
+    "algorithm": "scan",
+    "cost": 1,
+    "rows": 70,
+    "pages": 1
+  },
+  {
+    "subset": [
+      "d"
+    ],
+    "order": "d",
+    "algorithm": "scan",
+    "cost": 1,
+    "rows": 50,
+    "pages": 1
+  },
+  {
+    "subset": [
+      "a",
+      "b"
+    ],
+    "order": "b \u2192 a",
+    "algorithm": "nested_loop_join",
+    "cost": 4,
+    "rows": 1050,
+    "pages": 4
+  },
+  {
+    "subset": [
+      "b",
+      "c"
+    ],
+    "order": "c \u2192 b",
+    "algorithm": "nested_loop_join",
+    "cost": 4,
+    "rows": 525,
+    "pages": 2
+  },
+  {
+    "subset": [
+      "c",
+      "d"
+    ],
+    "order": "d \u2192 c",
+    "algorithm": "nested_loop_join",
+    "cost": 4,
+    "rows": 292,
+    "pages": 1
+  },
+  {
+    "subset": [
+      "a",
+      "b",
+      "c"
+    ],
+    "order": "b+c \u2192 a",
+    "algorithm": "nested_loop_join",
+    "cost": 8,
+    "rows": 6125,
+    "pages": 24
+  },
+  {
+    "subset": [
+      "b",
+      "c",
+      "d"
+    ],
+    "order": "c+d \u2192 b",
+    "algorithm": "nested_loop_join",
+    "cost": 7,
+    "rows": 2190,
+    "pages": 7
+  },
+  {
+    "subset": [
+      "a",
+      "b",
+      "c",
+      "d"
+    ],
+    "order": "b+c+d \u2192 a",
+    "algorithm": "nested_loop_join",
+    "cost": 19,
+    "rows": 25550,
+    "pages": 125
+  }
+]

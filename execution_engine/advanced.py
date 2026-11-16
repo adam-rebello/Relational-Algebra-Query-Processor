@@ -146,8 +146,8 @@ class GroupBy(Unary):
             if fun in ('sum','avg') and child.schema[i][1]!='INT':raise PlanError('Node group_by: numeric aggregate requires INT')
             self.aggs.append((fun,col,i))
         self.schema=[child.schema[i] for i in self.key_indices]
-        for fun,col,i in self.aggs:
-            name=f'{fun}_{col.replace(".","_") if col!="*" else "star"}'
+        for j,(fun,col,i) in enumerate(self.aggs):
+            name=aggregates[j][2] if len(aggregates[j])==3 else f'{fun}_{col.replace(".","_") if col!="*" else "star"}'
             typ=['INT'] if fun=='count' else (['VARCHAR',255] if i is not None and child.schema[i][1]=='VARCHAR' else ['INT'])
             if fun=='avg':typ=['REAL'] # calculated result, not an on-disk storage type
             self.schema.append([name,*typ])

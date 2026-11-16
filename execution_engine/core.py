@@ -123,6 +123,15 @@ class Project(Unary):
         row = self.child.next()
         return None if row is None else self.emit([row[i] for i in self.indexes])
 
+class Rename(Unary):
+    """Pipelined relation alias, preserving tuple values and positions."""
+    def __init__(self, child, alias):
+        super().__init__('rename', child)
+        self.schema = [[alias + '.' + c[0].split('.')[-1], *c[1:]] for c in child.schema]
+
+    def next(self):
+        return self.emit(self.child.next())
+
 class Limit(Unary):
     def __init__(self, child, n):
         super().__init__('limit', child)
@@ -224,8 +233,9 @@ def check_condition(node, schema):
         if isinstance(part, StringNode): return 'VARCHAR'
         if isinstance(part, AttributeNode):
             if not part.relation:
-                raise PlanError(f"Unqualified column {part.name!r}")
-            index=column_index(schema,part.relation+'.'+part.name)
+                index=column_index(schema,part.name)
+            else:
+                index=column_index(schema,part.relation+'.'+part.name)
             return schema[index][1]
         raise PlanError('Invalid condition operand')
     def check(part):
@@ -242,9 +252,10 @@ def check_condition(node, schema):
 def relation_for_schema(schema):
     attrs = []
     for name, *rest in schema:
-        if '.' not in name:
-            raise PlanError(f'Unqualified column {name!r}')
-        table, col = name.split('.', 1)
+        if '.' in name:
+            table, col = name.split('.', 1)
+        else:
+            table, col = None, name
         attrs.append(Attribute(col, relation=table,
                                value_type='number' if rest[0] == 'INT' else 'string'))
     return Relation('_condition', attrs, bag=True)
@@ -265,6 +276,7 @@ def validate(node, path='root'):
         raise PlanError(f"Node '{path}': missing required string field 'op'")
     fields = {
         'seqscan': {'table': str},
+        'rename': {'to': str, 'child': dict},
         'filter': {'condition': str, 'child': dict},
         'project': {'columns': list, 'child': dict},
         'limit': {'n': int, 'child': dict},
@@ -290,7 +302,7 @@ def validate(node, path='root'):
         raise PlanError(f"Node '{op}': mode must be sort or hash")
     if op == 'sort' and any(not isinstance(k, list) or len(k)!=2 or not all(isinstance(x,str) for x in k) or k[1].lower() not in ('asc','desc') for k in node['keys']):
         raise PlanError("Node 'sort': keys must be [column,direction] pairs")
-    if op == 'group_by' and (not all(isinstance(x,str) for x in node['keys']) or any(not isinstance(a,list) or len(a)!=2 or not all(isinstance(x,str) for x in a) for a in node['aggregates'])):
+    if op == 'group_by' and (not all(isinstance(x,str) for x in node['keys']) or any(not isinstance(a,list) or len(a) not in (2,3) or not all(isinstance(x,str) for x in a) for a in node['aggregates'])):
         raise PlanError("Node 'group_by': invalid keys or aggregates")
     if op == 'project' and (not node['columns'] or not all(isinstance(c, str) for c in node['columns'])):
         raise PlanError("Node 'project': columns must be a nonempty string list")
@@ -306,8 +318,9 @@ def build(node, db, frames):
     op = node['op']
     if op == 'seqscan':
         return SeqScan(db, node['table'], frames)
-    if op in ('filter', 'project', 'limit', 'sort', 'distinct', 'group_by'):
+    if op in ('rename', 'filter', 'project', 'limit', 'sort', 'distinct', 'group_by'):
         child = build(node['child'], db, frames)
+        if op == 'rename': return Rename(child, node['to'])
         if op == 'filter': return Filter(child, node['condition'])
         if op == 'project': return Project(child, node['columns'])
         if op == 'limit': return Limit(child, node['n'])

@@ -145,125 +145,22 @@ An additional regression test found that sorting the output of `GROUP BY` with `
 - **AI-assisted correction 2:** Initial statement handling treated parsed INSERT statements only as structures. A later review added schema/type validation against the catalog for INSERT values. This still does not execute INSERT; execution remains outside the Module 3 compiler contract.
 - The required-case tests passed (15 cases); full local regression suite passed (116 total). Exact hidden JSON-schema compatibility and thorough nested-condition validation remain outstanding.
 
-# COMP 3005 – Bonus Project 2
-## Module 3: SQL Front End – Design Log
+This section is a summary of the implementation work and test evidence. Dates should be added only where supported by the actual development history.
 
-**Review period: November 9–15, 2026**
+## Project 2 — Module 4: Query Optimizer (November 16, 2026)
 
-### November 9 – Entry 1: Reviewing Module 3 Requirements
+### Requirements and implementation choices
 
-The main focus was understanding how Module 3 would connect with the previous modules. Unlike Bonus Project 1, where the input was relational algebra, this module needed to accept SQL statements and translate them into logical plans.
+I reviewed the Module 4 plan contracts before adding the optimizer. I kept SQL compilation and physical execution separate: the optimizer reads the logical JSON from Module 3 and chooses a physical plan using estimates and a page-I/O cost model. I added statistics on top of the existing Module 1 catalog, using the M2 external sort rather than reading a full column into a Python list. The catalog keeps a pointer to the paged statistics file to avoid overflowing a catalog record with histogram values.
 
-An important requirement was keeping the SQL compiler separate from the execution engine. Module 3 should describe what operations need to happen without choosing how they are physically executed.
+### Debugging and AI-assisted corrections
 
-### November 9 – Entry 2: Planning the Parser
+1. The first statistics implementation relied on the catalog's `num_pages` field. A real-heap test produced zero data pages even after records were inserted directly through `HeapFile`. I replaced this with an exact traversal of the heap directory pages and reran the test; the table correctly reported one data page.
+2. My initial cost utility forced a minimum B of four even while testing the published external-sort example using B=3. The test showed an estimated sort cost of 24 instead of the required 40. I corrected the standalone cost function and added a regression test for the B=3 formula.
+3. The first SQL-to-physical-plan test failed because M2 did not accept logical `rename` as a physical iterator, even though Module 3 emits it for aliases. I added a pipelined rename operator and verified the exact query runs without manually changing its plan.
+4. A grouped query using `COUNT(*) AS n` initially failed when HAVING referenced `n`, because M2 expected every condition attribute to have a qualified table name. I updated the executor to resolve uniquely named aggregate output columns and reran the grouping test.
+5. I also found that ordering by a non-projected column would fail when sorting above projection. The optimizer now sorts before dropping the ORDER BY key in that case.
 
-I reviewed the SQL grammar and identified the main parts needed for the implementation: tokenization, parsing, name resolution, type checking, and logical-plan generation.
+### Verification and report limits
 
-I decided to keep the scanner and parser separate from the catalog-dependent parts. This would allow SQL syntax to be checked without requiring an existing database.
-
-### November 10 – Entry 1: SQL Tokenization
-
-The tokenizer needed to recognize SQL keywords, identifiers, numeric values, strings, and comparison operators.
-
-I kept the scanner hand-written, following the same general approach used in Bonus Project 1. This also avoided regular expressions and parser generators, which were restricted by the assignment.
-
-### November 10 – Entry 2: Parsing SQL Statements
-
-The parser was designed to recognize statements such as SELECT, CREATE TABLE, and INSERT INTO.
-
-For SELECT queries, it also needed to handle optional clauses including WHERE, GROUP BY, HAVING, ORDER BY, and LIMIT.
-
-The main challenge was keeping the grammar organized while supporting different combinations of these clauses.
-
-### November 11 – Entry 1: Table Aliases and Name Resolution
-
-One important part of Module 3 was handling table aliases and qualified column names.
-
-For example, in a query using `Employees e`, column references should resolve using the alias `e`.
-
-I reviewed how the compiler builds a scope from the FROM clause and uses it to identify the correct table for each column.
-
-### November 11 – Entry 2: Ambiguous Columns and Type Checking
-
-I focused on the cases where multiple tables contain a column with the same name.
-
-An unqualified reference should be rejected if it matches more than one table. However, SELECT * should still work by expanding columns into their qualified names.
-
-The compiler also needed to reject invalid comparisons, such as comparing an INT column with a VARCHAR literal.
-
-### November 12 – Entry 1: Logical-Plan Translation
-
-The next part was translating parsed SQL into the required logical-plan structure.
-
-I followed the order provided in the specification: FROM, WHERE, GROUP BY, HAVING, SELECT, ORDER BY, and LIMIT.
-
-Keeping this order was important because the query optimizer in Module 4 is responsible for rearranging operations later.
-
-### November 12 – Entry 2: JOIN Operations
-
-I reviewed the difference between comma joins and explicit JOIN statements.
-
-A comma join should produce a cross-product operation, with any WHERE condition placed above it.
-
-An explicit JOIN ON should produce a join node containing the join condition.
-
-I also checked self-joins, where the same table is accessed using two different aliases.
-
-### November 13 – Entry 1: GROUP BY and HAVING
-
-Grouping introduced additional rules because SQL aggregates operate differently from normal column expressions.
-
-I reviewed the supported aggregate functions: COUNT, SUM, AVG, MIN, and MAX.
-
-I also checked that a query cannot select a non-grouped column alongside aggregates unless that column appears in the GROUP BY clause.
-
-### November 13 – Entry 2: Bag Semantics and Set Operations
-
-Another important difference from Bonus Project 1 was duplicate handling.
-
-The original relational algebra processor used set semantics, but SQL generally preserves duplicate rows.
-
-For this module, normal projection should keep duplicates. SELECT DISTINCT removes them explicitly, while UNION and UNION ALL must generate different logical operators.
-
-### November 14 – Entry 1: Reviewing AI-Assisted Condition Handling
-
-During the implementation review, an issue was identified in the condition formatter.
-
-An earlier version could retain type-checking information across AND and OR boundaries, which could affect the validation of compound conditions.
-
-The logic was adjusted to clear this temporary state at the appropriate boundaries, and the relevant required-case tests were rerun.
-
-### November 14 – Entry 2: INSERT Statement Validation
-
-Another issue identified during the review involved INSERT statements.
-
-The initial implementation could parse INSERT statements into their internal structure, but it did not fully validate the inserted values against the catalog schema.
-
-Schema and type validation were added so invalid values could be rejected.
-
-The SQL front end still does not execute INSERT statements directly, since its main responsibility is parsing and compilation.
-
-### November 15 – Entry 1: Testing and Verification
-
-The implementation was checked against the required Module 3 cases.
-
-These covered self-joins, ambiguous columns, SELECT *, grouping, HAVING, subqueries, UNION and UNION ALL, invalid comparisons, and unknown tables or columns.
-
-The recorded results were:
-
-- 15 required Module 3 cases passed.
-- 116 tests passed across the combined local project suite.
-- The SQL command-line interface was checked using an existing Module 1 database.
-
-### November 15 – Entry 2: Documentation and Final Review
-
-The Module 3 documentation was organized into the grammar file, design document, testing audit, and design log.
-
-The grammar document describes the supported SQL syntax and operator precedence. The design document explains column resolution, aggregate handling, and bag semantics.
-
-The final review also identified some remaining limitations. The separately published logical-plan JSON schema was not available for comparison, and more complicated nested conditions were not exhaustively tested.
-
-Overall, the biggest challenge in Module 3 was not simply recognizing SQL syntax, but making sure each query was interpreted correctly and translated into the expected logical plan.
-
-The next step is Module 4, where these logical plans will be optimized and converted into physical execution plans.
+The synthetic four-table workload ran successfully and produced a complete DP table and measured page-I/O results at B=4 and B=16. The project test suite was rerun after the integration changes. The official 20-query workload and correlated dataset were not supplied; those measurements remain missing and are marked as such in `REPORT_M4.md`. I have not claimed the synthetic data to be the instructor's hidden benchmark.
