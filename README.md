@@ -368,3 +368,28 @@ python tools/m4_quick_measure.py
 The logical plan should be emitted by Module 3 (`python sql.py compile ... --json`) and fed without editing to Module 4. The physical plan from `opt plan` is accepted by Module 2 (`python exec.py run --db ./my_db --plan physical.json --frames 32 --json`). On Windows, `opt.bat` is also available.
 
 The Module 4 package includes `DESIGN_M4.md`, `REPORT_M4.md`, entries in `DESIGN_LOG.md`, reproducible synthetic measurement files in `measurements_m4/`, and `tests/test_module4.py`. The instructor's 20-query workload was not provided; the reports do **not** claim that required workload is complete or that hidden tests have passed.
+
+## Project 2 — Final integrated SQL shell
+
+All four project modules can now be used through `db_shell.py` while their original standalone commands remain available.
+
+```bash
+python db_shell.py --db final_demo_db --frames 8
+```
+
+Enter SQL statements terminated with semicolons. Supported shell commands include `ANALYZE table;`, `SET frames = 4;`, `LOAD table FROM 'data.csv';`, `EXPLAIN SELECT ...;`, `EXPLAIN ANALYZE SELECT ...;`, `.tables`, `.help`, and `.quit`.
+
+To run the reproducible demonstrations in a fresh database:
+
+```bash
+python db_shell.py --db final_demo_db --frames 8 --file examples/integration_demo.sql
+python db_shell.py --db final_demo_db --frames 4 --file examples/integration_join_demo.sql
+```
+
+Run the test suite using `python -m pytest -q`. Read `ARCHITECTURE.md` for interfaces and `FINAL_DEMO_GUIDE.md` for the final evaluation walkthrough. To measure a later supplied SELECT workload:
+
+```bash
+python tools/integration_workload.py --db final_demo_db --file workload.sql --frames 8 --out results.csv
+```
+
+The unseen instructor workload and PostgreSQL result comparison have not been independently validated.

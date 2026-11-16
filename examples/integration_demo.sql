@@ -1,0 +1,10 @@
+CREATE TABLE DemoStudents (id INT, name VARCHAR(30), dept INT);
+INSERT INTO DemoStudents VALUES (1, 'Alice', 10);
+INSERT INTO DemoStudents VALUES (2, 'Bob', 20);
+INSERT INTO DemoStudents VALUES (3, 'Cara', 10);
+SELECT id, name FROM DemoStudents WHERE dept = 10;
+ANALYZE DemoStudents;
+EXPLAIN SELECT id, name FROM DemoStudents WHERE dept = 10;
+EXPLAIN ANALYZE SELECT id, name FROM DemoStudents WHERE dept = 10;
+SET frames = 4;
+SELECT COUNT(*) AS total FROM DemoStudents;
