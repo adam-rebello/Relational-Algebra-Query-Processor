@@ -1,6 +1,5 @@
 # DESIGN_LOG.md
 
-More recent milestones working periods are below intial project submission.
 ## Session 1 - Grammar and Initial Design Septemeber 22nd, 2026
 
 I started by breaking the project into the tokenizer, parser, parse tree, relation model, evaluator, tests, and performance tools. I decided to use a hand-written tokenizer and recursive-descent parser because the assignment specifically does not allow parser generators or regular expressions.
@@ -76,109 +75,63 @@ The main AI mistakes or incomplete suggestions that I had to identify and correc
 5. Using a selection benchmark that included large result-construction costs instead of isolating the tuple scan.
 
 These issues were found through required test cases, failed semantic behaviour, and performance measurements rather than accepting generated code without checking it.
+---
 
-# COMP 3005 – Bonus Project 2
-## Module 1: Storage Engine and Buffer Pool — Design Log
+## Project 2 — M1 checkpoint, November 15, 2026
 
-### Entry 1 – Initial Planning and Reviewing Project 1
-**Date:** [Nov 2nd, 2026]
+### Reusing Bonus Project 1
 
-I started by going through the requirements for Bonus Project 2 and comparing them with my previous relational algebra processor. Since Project 1 mainly worked with relations stored in memory, I needed to figure out how to build the storage layer without affecting the original code.
+I preserved all the existing Bonus 1 tests and made the storage engine a new package. The baseline was **32 passing tests**, and the combined suite now also tests M1 record/page encoding, heap operations, persistence, counters, CLI, condition parsing and tree serialization. `Relation` has an opt-in bag mode so M2/M3 can retain SQL duplicates while the legacy Bonus 1 set tests still pass.
 
-I decided to keep the relational algebra components and build the new storage engine separately. This would make it easier to test the new features while keeping the old functionality working.
+### Decision: don't compact deleted slots
 
-I also reviewed the module requirements, especially the fixed page size, record formats, and memory restrictions, since these were important for the rest of the implementation.
+The assignment allows leaving tombstoned bytes in place. I chose no compaction for M1 because it makes RIDs stable and matches the required example after deleting slot 1. I explicitly track *contiguous usable free space* rather than guessing that a deleted record makes free bytes available.
 
-### Entry 2 – Record Encoding and Slotted Pages
-**Date:** [Nov 3rd, 2026]
+### AI-assisted issue 1: storage API without a graded command-line interface
 
-I worked on storing records using the formats provided in the assignment. Each page is 4096 bytes, with integers stored using 4 bytes and strings stored with a length prefix.
+An initial development pass provided disk, slotted-page, directory, and buffer classes, but did not provide the five required `storage` commands. Inspection against Section 7 of the M1 PDF caught the omission. I added `storage.py`, a Windows launcher, argument validation, JSON outputs, and subprocess tests invoking commands exactly as a grader would.
 
-For the page layout, I used a slot directory that grows forward from the page header, while the actual record data is stored backward from the end of the page.
+### AI-assisted issue 2: two buffer pools alive together
 
-One thing I had to pay attention to was how deletion works. Instead of removing a slot or reusing its number, I marked it as deleted. This keeps existing record IDs valid and follows the required page structure.
+An early `load` path held a catalog buffer pool in memory while a heap buffer pool was also running. Each pool could allocate B frames, potentially violating the global `--frames B` rule even though each individual pool respected B. A contract review found this. I changed the command flow to close and release catalog frames before opening heap frames, then reopened the catalog to update its metadata. The relevant test runs a heap scan at `B=2` and checks all pins are released afterward.
 
-I checked the page layout against the worked example to make sure the offsets and free-space values matched.
+### AI-assisted issue 3: unintended duplicate removal
 
-### Entry 3 – Heap File and Catalog Implementation
-**Date:** [Nov 4th, 2026]
+Bonus 1's set-based `Relation.add_tuple()` automatically drops duplicate rows, which would silently break SQL bag semantics if reused without modification. Reviewing the Bonus 2 week-one requirements exposed this behavior. I added an opt-in `bag=True` relation mode, propagated it through projection and rename, and verified projected duplicates remain present until `.distinct()` is explicitly requested. The legacy 32 tests still pass in set mode. This is a **compatibility bridge**, not a claim that the entire future executor is already bag-correct.
 
-After working on the page structure, I moved on to the heap file and catalog.
+### Verified test results and outstanding work
 
-The heap file uses directory pages to keep track of the available space in each data page. This allows the program to find somewhere to insert a record without searching through every data page.
+- The instructor's 13/20/13-byte page example is exact; deleting slot 1 retains 4030 free bytes and leaves `(0,0)`.
+- The provided B=3 buffer trace is exact: LRU (1,5,2), CLOCK (2,4,1) for hits/misses/evictions.
+- A full CLI test creates a table, loads a quoted-comma CSV, scans with B=2, reproduces JSON deterministically, and displays page layout.
+- Measured page capacities and cold 500-data-page scan are recorded in `REPORT_M1.md`.
+- Official five Brightspace traces were not supplied; synthetic trace measurements are labeled as such. This is a remaining checkpoint requirement, not a completed one.
+- Bonus 1 refactor remains partial: the old in-memory evaluator is retained for compatibility; a fully source-independent pull-based executor belongs to subsequent M2 work.
+## Project 2 — M2 checkpoint (add actual development dates from Git history)
 
-I also worked on the catalog, which stores information about the tables, including their names, schemas, and number of records.
+### Iterators and the first runnable plan
 
-I kept the storage components separate so the rest of the database system could eventually use them.
+I started with a small execution-tree API (`open`, `next`, `close`, `counters`) and connected sequential scans to the Module 1 heap file. I then added pipelined filter, projection, LIMIT and UNION ALL. I tested these against actual disk-backed tables, including a case where a projection must preserve duplicate rows rather than removing them as Bonus Project 1 did.
 
-### Entry 4 – Buffer Pool and Replacement Policies
-**Date:** [Nov 5th, 2026]
+### Blocking operators and the memory budget
 
-The next part was implementing the buffer pool with a fixed number of frames.
+I added temporary 4096-byte page files through the Module 1 disk manager. The external sort writes bounded initial runs and merges at most B-1 runs at a time. Distinct and group-by support sort-based and hash-partitioned variants. Block nested loop, sort-merge and Grace hash join are separate algorithms rather than aliases for one tuple-at-a-time join.
 
-I added pin counts to track which pages are currently being used and dirty flags to identify pages that need to be written back to disk.
+The implementation uses conservative frame reservations and input staging to avoid assuming a full table fits in memory. I compared the resulting measured I/O to the textbook formulas and documented the staging overhead in `REPORT_M2.md`.
 
-I implemented both LRU and CLOCK replacement policies. LRU removes the least recently used unpinned page, while CLOCK uses reference bits and a rotating pointer to select a page for replacement.
+### AI-assisted corrections verified through testing
 
-I tested both policies using the assignment's example trace:
+1. **Unbounded CLI result list:** An intermediate runner collected every result tuple into a Python list before printing JSON. Reviewing the assignment's memory rule showed this would violate B when a query returned many rows. I changed `exec.py` to write JSON rows incrementally, then reran the tests and CLI query.
+2. **Hash-join partition budget:** An initial partition loop kept the Module 1 heap scan active while reserving B-1 output partitions. The live directory/data pages could push that over B. I changed the partition phase to stage the child once, then consume one temporary input page alongside B-1 partition output pages.
+3. **Missing operator validation:** The first partial implementation deliberately rejected hash join, and its original test expected that error. After implementing the algorithm, the old test failed. I updated it to verify a genuinely missing required field instead of expecting an implemented operator to be unsupported.
+4. **Test harness naming issue:** An additional test class overrode unittest's `run` method with a query runner, which caused pytest to fail before testing the database code. I renamed the helper to `run_plan` and reran the suite.
 
-`1 2 3 1 4 2`
+### Measurements, results, and limitations
 
-With three frames, the results matched the expected values:
+The combined test suite initially passed 85 tests in the local environment. I ran 36 join-size/frame experiments, six external-sort trials and a 40% skew hash-join case. A B=4 external-sort trial processed 88 input pages, more than 20 times its four-frame budget. The skew test used the on-disk fallback for an oversized partition and returned the expected 6,520 matches.
 
-- LRU: 1 hit, 5 misses, 2 evictions.
-- CLOCK: 2 hits, 4 misses, 1 eviction.
+The separate full plan JSON schema mentioned in the M2 PDF was not supplied, and the implementation has not been tested against it. Some I/O counts are higher than ideal textbook costs because of temporary-file staging, and a global peak-frame monitor remains unimplemented. These limits are stated in the design and report rather than treated as passing requirements.
 
-This helped confirm that the replacement logic was following the specification.
+### Submission audit: intermediate REAL values
 
-### Entry 5 – Command-Line Interface and Debugging
-**Date:** [Nov 6th, 2026]
-
-Once the main storage components were implemented, I worked on making them accessible through the command-line interface.
-
-The required commands included creating tables, loading CSV files, scanning records, displaying page layouts, and running buffer replacement traces.
-
-While reviewing the implementation, I noticed that some earlier AI-assisted suggestions focused on the storage classes without covering every required command-line operation.
-
-I corrected this by adding the missing command functionality and testing the commands individually.
-
-Another issue I reviewed was memory usage. Using separate buffer pools for catalog and table operations could potentially exceed the frame limit. I adjusted the command flow so catalog resources were released before opening the heap-file buffer pool.
-
-These changes helped keep the implementation consistent with the module requirements.
-
-### Entry 6 – Relational Algebra Compatibility
-**Date:** [Nov 6th, 2026]
-
-I also reviewed how the original relational algebra processor would connect with the new database system.
-
-One difference was duplicate handling. Bonus Project 1 used set semantics, where duplicate tuples were removed, but SQL generally uses bag semantics.
-
-I added support for preserving duplicate tuples while keeping the original set-based behaviour available for compatibility.
-
-This was important for the later modules, especially the execution engine and SQL front end.
-
-### Entry 7 – Testing and Verification
-**Date:** [Nov 7th, 2026]
-
-After completing the main implementation, I ran the original Bonus Project 1 tests along with the new storage engine tests.
-
-The combined suite passed 51 tests, including the original 32 tests.
-
-I also checked the important requirements from the Module 1 specification, including the slotted-page example, buffer replacement counters, record operations, and command-line functionality.
-
-The goal was to make sure the implementation followed the exact required behaviour rather than simply returning the expected data.
-
-### Entry 8 – Measurements, Documentation, and Final Review
-**Date:** [Nov 7th, 2026]
-
-For the final part of Module 1, I organized the design documentation and measurement results.
-
-The design document explains the page layout, record encoding, heap file structure, catalog, and buffer pool implementation.
-
-The measurement report includes page-capacity calculations, buffer replacement results, and scan measurements.
-
-The official Brightspace trace files were not used for the replacement-policy measurements, so I identified those results as synthetic workloads rather than presenting them as the official traces.
-
-Looking back, the main challenge was making sure the low-level details were correct. Small differences in page offsets, replacement order, or counter calculations could affect the grading results.
-
-This module also provided a foundation for the next stage of the project, where the execution engine will need to read tuples through the buffer pool instead of relying on relations stored entirely in memory.
+An additional regression test found that sorting the output of `GROUP BY` with `AVG` failed. The M2 temporary-record writer reused the M1 INT/VARCHAR encoder, which cannot encode the intermediate REAL value returned by AVG. I added a distinct executor-only temporary encoding for REAL using an eight-byte little-endian float; on-disk Module 1 table schemas remain limited to INT and VARCHAR. The new tests cover grouping followed by sorting and hash-based duplicate removal. After the correction, the local suite passed **101 tests**. This is a verified issue encountered during the final audit, not a claim of compatibility with hidden instructor plans.

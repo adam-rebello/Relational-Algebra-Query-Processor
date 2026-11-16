@@ -1,0 +1,7 @@
+frames,rows,input_pages,input_to_frames_ratio,measured_passes,measured_reads,measured_writes,textbook_passes
+4,100,4,1.0,3,12,7,1
+4,300,12,3.0,4,46,33,2
+4,2200,88,22.0,6,514,425,4
+16,500,20,1.25,2,42,21,2
+16,2200,88,5.5,2,181,92,2
+64,2200,88,1.38,2,178,89,2

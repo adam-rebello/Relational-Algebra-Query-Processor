@@ -1,0 +1,3 @@
+scenario,rows_each,result_rows,reads,writes,comparisons,overflow_partitions
+uniform,200,200,61,34,13346,3
+40_percent_skew,200,6520,62,34,14962,1

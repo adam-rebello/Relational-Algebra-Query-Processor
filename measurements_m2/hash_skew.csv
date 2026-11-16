@@ -1,0 +1,2 @@
+frames,rows_per_table,skew_share,result_rows,overflow_partitions,partition_pages,page_reads,page_writes,comparisons
+4,200,0.4,6520,1,"[(5, 5), (2, 2), (2, 2)]",62,34,14962

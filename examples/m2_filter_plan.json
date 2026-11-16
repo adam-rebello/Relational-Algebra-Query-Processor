@@ -1,0 +1,1 @@
+{"op":"filter","condition":"R.a > 2","child":{"op":"seqscan","table":"R"}}

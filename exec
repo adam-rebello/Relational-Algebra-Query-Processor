@@ -1,0 +1,4 @@
+#!/bin/sh
+# Module 2 command-line launcher
+cd "$(dirname "$0")" || exit 1
+exec python3 exec.py "$@"
