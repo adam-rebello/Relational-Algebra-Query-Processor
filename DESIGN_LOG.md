@@ -77,7 +77,7 @@ The main AI mistakes or incomplete suggestions that I had to identify and correc
 These issues were found through required test cases, failed semantic behaviour, and performance measurements rather than accepting generated code without checking it.
 ---
 
-## Project 2 — M1 checkpoint, November 15, 2026
+## Project 2 — M1 checkpoint, November 4, 2026
 
 ### Reusing Bonus Project 1
 
@@ -107,7 +107,7 @@ Bonus 1's set-based `Relation.add_tuple()` automatically drops duplicate rows, w
 - Measured page capacities and cold 500-data-page scan are recorded in `REPORT_M1.md`.
 - Official five Brightspace traces were not supplied; synthetic trace measurements are labeled as such. This is a remaining checkpoint requirement, not a completed one.
 - Bonus 1 refactor remains partial: the old in-memory evaluator is retained for compatibility; a fully source-independent pull-based executor belongs to subsequent M2 work.
-## Project 2 — M2 checkpoint (add actual development dates from Git history)
+## Project 2 — M2 checkpoint 
 
 ### Iterators and the first runnable plan
 
@@ -147,7 +147,7 @@ An additional regression test found that sorting the output of `GROUP BY` with `
 
 This section is a summary of the implementation work and test evidence. Dates should be added only where supported by the actual development history.
 
-## Project 2 — Module 4: Query Optimizer (November 16, 2026)
+## Project 2 — Module 4: Query Optimizer (November 15, 2026)
 
 ### Requirements and implementation choices
 
@@ -165,7 +165,7 @@ I reviewed the Module 4 plan contracts before adding the optimizer. I kept SQL c
 
 The synthetic four-table workload ran successfully and produced a complete DP table and measured page-I/O results at B=4 and B=16. The project test suite was rerun after the integration changes. The official 20-query workload and correlated dataset were not supplied; those measurements remain missing and are marked as such in `REPORT_M4.md`. I have not claimed the synthetic data to be the instructor's hidden benchmark.
 
-## Project 2 — Final Integration Checkpoint (November 16, 2026)
+## Project 2 — Final Integration Checkpoint (November 15, 2026)
 
 ### Connecting the modules
 
