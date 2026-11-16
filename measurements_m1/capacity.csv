@@ -1,0 +1,4 @@
+schema,definition,record_bytes,predicted_first_page_records,measured_first_page_records,data_pages
+four_int,"a:INT,b:INT,c:INT,d:INT",16,204,204,2
+short_varchar,"a:INT,b:VARCHAR(10),c:INT",13,240,240,2
+long_varchar,"a:INT,b:VARCHAR(200),c:INT",190,21,21,2

@@ -1,0 +1,4 @@
+frames,rows_scanned,file_pages,page_reads,page_writes
+2,500,501,501,0
+8,500,501,501,0
+64,500,501,501,0

@@ -144,7 +144,8 @@ class Evaluator:
 
         result = Relation(
             relation.name,
-            attributes
+            attributes,
+            bag=relation.bag
         )
 
         for row in relation.tuples:
@@ -153,7 +154,7 @@ class Evaluator:
                 for index in indexes
             ]
 
-            # add_tuple removes duplicate projected tuples
+            # In bag mode projection retains duplicate rows.
             result.add_tuple(values)
 
         return result
@@ -178,7 +179,8 @@ class Evaluator:
 
         result = Relation(
             node.new_name,
-            attributes
+            attributes,
+            bag=relation.bag
         )
 
         for row in relation.tuples:
@@ -298,7 +300,8 @@ class Evaluator:
 
         result = Relation(
             f"{left.name}_times_{right.name}",
-            attributes
+            attributes,
+            bag=left.bag or right.bag
         )
 
         for left_row in left.tuples:
@@ -348,7 +351,8 @@ class Evaluator:
 
         result = Relation(
             f"{left.name}_join_{right.name}",
-            attributes
+            attributes,
+            bag=left.bag or right.bag
         )
 
         # Nested-loop theta join.

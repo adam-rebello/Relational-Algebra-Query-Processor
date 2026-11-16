@@ -43,7 +43,9 @@ class RATuple:
 
 
 class Relation:
-    def __init__(self, name, attributes):
+    def __init__(self, name, attributes, bag=False):
+        # Bag mode is opt-in to preserve the submitted Bonus 1 set semantics.
+        self.bag = bag
         self.name = name
         self.attributes = []
 
@@ -58,10 +60,7 @@ class Relation:
         self.tuples = []
 
     def add_tuple(self, values):
-        """
-        Add a tuple using set semantics.
-        Duplicate tuples are ignored.
-        """
+        """Append a tuple; set mode drops duplicates, SQL bag mode keeps them."""
 
         if len(values) != len(self.attributes):
             raise SchemaError(
@@ -73,10 +72,10 @@ class Relation:
 
         new_tuple = RATuple(values)
 
-        for existing_tuple in self.tuples:
-            if existing_tuple == new_tuple:
-                return
-
+        if not self.bag:
+            for existing_tuple in self.tuples:
+                if existing_tuple == new_tuple:
+                    return
         self.tuples.append(new_tuple)
 
     def _check_types(self, values):
@@ -167,13 +166,24 @@ class Relation:
                 )
             )
 
-        return Relation(relation_name, attributes)
+        return Relation(relation_name, attributes, bag=self.bag)
 
     def schema_names(self):
         return [
             attribute.qualified_name()
             for attribute in self.attributes
         ]
+
+    def iter_rows(self):
+        """Pull rows from a source without requiring operators to use .tuples."""
+        yield from self.tuples
+
+    def distinct(self):
+        """Explicit duplicate removal for SQL SELECT DISTINCT semantics."""
+        result = Relation(self.name, self.attributes, bag=False)
+        for row in self.iter_rows():
+            result.add_tuple(row.values)
+        return result
 
     def __repr__(self):
         lines = []
