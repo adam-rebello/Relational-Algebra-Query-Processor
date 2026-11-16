@@ -135,3 +135,14 @@ The separate full plan JSON schema mentioned in the M2 PDF was not supplied, and
 ### Submission audit: intermediate REAL values
 
 An additional regression test found that sorting the output of `GROUP BY` with `AVG` failed. The M2 temporary-record writer reused the M1 INT/VARCHAR encoder, which cannot encode the intermediate REAL value returned by AVG. I added a distinct executor-only temporary encoding for REAL using an eight-byte little-endian float; on-disk Module 1 table schemas remain limited to INT and VARCHAR. The new tests cover grouping followed by sorting and hash-based duplicate removal. After the correction, the local suite passed **101 tests**. This is a verified issue encountered during the final audit, not a claim of compatibility with hidden instructor plans.
+
+## Project 2 — Module 3: SQL Front End (implementation review)
+
+- Reviewed the Module 3 contract, especially canonical operator ordering, name resolution, the difference between comma joins and `JOIN ... ON`, and bag versus set semantics.
+- Implemented the scanner and parser separately from catalog-dependent compilation, allowing parsing without an existing database.
+- Verified the reference plans for basic filtering, aliased joins, comma joins, HAVING, self joins, subqueries and UNION modes.
+- **AI-assisted correction 1:** An early implementation of the condition formatter could retain type-checking state across boolean `AND` / `OR` boundaries. The logic was changed to clear that state at boolean boundaries; the final required-case suite was rerun.
+- **AI-assisted correction 2:** Initial statement handling treated parsed INSERT statements only as structures. A later review added schema/type validation against the catalog for INSERT values. This still does not execute INSERT; execution remains outside the Module 3 compiler contract.
+- The required-case tests passed (15 cases); full local regression suite passed (116 total). Exact hidden JSON-schema compatibility and thorough nested-condition validation remain outstanding.
+
+This section is a summary of the implementation work and test evidence. Dates should be added only where supported by the actual development history.

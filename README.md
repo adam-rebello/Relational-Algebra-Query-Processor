@@ -336,3 +336,18 @@ are in `measurements_m2/`, and the tested implementation and limitations
 are explained in `DESIGN_M2.md` and `REPORT_M2.md`. The executor supports
 intermediate AVG results through a temporary REAL representation without
 changing Module 1's INT/VARCHAR record format.
+
+## Project 2 — Module 3 SQL front end
+
+Module 3 adds a hand-written SQL lexer, parser, name resolver and logical-plan translator. It uses the Module 1 catalog, does not require Module 4, and does not run SQL statements. See `GRAMMAR_SQL.md`, `DESIGN_M3.md`, and `M3_AUDIT.md`.
+
+On Windows use `python sql.py`, or `sql.bat`. On macOS/Linux use `python3 sql.py` or `./sql`.
+
+```sh
+python sql.py parse --query "SELECT name, age FROM Emp WHERE age > 30" --explain
+python sql.py compile --db ./my_db --file query.sql --json
+python sql.py check --db ./my_db --file query.sql
+python -m pytest tests/test_module3.py -q
+```
+
+`compile` and `check` need existing tables in a Module 1 catalog at `./my_db`. The commands print `error: category: ... at line ..., column ...` and exit nonzero on failure.
